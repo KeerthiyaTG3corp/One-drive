@@ -4,36 +4,47 @@ import io
 
 def update_questionnaire_with_answers(original_doc_bytes, answers_json):
     """
-    Rebuilds the questionnaire in sequential order:
-    Question
-    Description / Clarification
-    Answer
+    Updates answers directly inside the questionnaire table.
+
+    Assumes table columns:
+    0 = Question
+    1 = Description / Clarification
+    2 = Response Type
+    3 = Answer (added if missing)
     """
 
-    new_doc = Document()
+    doc = Document(io.BytesIO(original_doc_bytes))
 
-    answers = answers_json.get("answers", [])
+    if not doc.tables:
+        raise Exception("No tables found in questionnaire")
 
-    for idx, item in enumerate(answers, start=1):
-        # Question
-        q_para = new_doc.add_paragraph()
-        q_para.add_run("Question:\n").bold = True
-        q_para.add_run(item.get("question", ""))
+    table = doc.tables[0]
 
-        # Description
-        d_para = new_doc.add_paragraph()
-        d_para.add_run("\nDescription / Clarification:\n").bold = True
-        d_para.add_run(item.get("description", ""))
+    answers_map = {
+        a["question_index"]: a["answer"]
+        for a in answers_json.get("answers", [])
+    }
 
-        # Answer
-        a_para = new_doc.add_paragraph()
-        a_para.add_run("\nAnswer:\n").bold = True
-        a_para.add_run(item.get("answer", "Not found in source"))
+    # 🔹 Ensure Answer column exists
+    current_cols = len(table.columns)
+    if current_cols < 4:
+        table.add_column(table.columns[0].width)
 
-        # Spacer between questions
-        new_doc.add_paragraph("\n")
+        # Set header text
+        table.rows[0].cells[3].text = "Answer"
 
-    # Save DOCX to bytes
-    out = io.BytesIO()
-    new_doc.save(out)
-    return out.getvalue()
+    question_index = 0
+
+    for row_idx, row in enumerate(table.rows):
+        if row_idx == 0:
+            continue  # skip header row
+
+        question_index += 1
+        answer = answers_map.get(question_index, "Not found in source")
+
+        # Safe write
+        row.cells[3].text = answer
+
+    out_stream = io.BytesIO()
+    doc.save(out_stream)
+    return out_stream.getvalue()

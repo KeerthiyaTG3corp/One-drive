@@ -1,5 +1,9 @@
 import tempfile
 import os
+import pytesseract
+
+pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+
 
 # PDF
 import pdfplumber
@@ -38,13 +42,17 @@ def extract_text_from_docx(b):
 
 # Image OCR
 def extract_text_from_image(b):
-    with tempfile.NamedTemporaryFile(delete=False) as tf:
-        tf.write(b)
-        tf.flush()
+    try:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tf:
+            tf.write(b)
+            tf.flush()
 
-    img = Image.open(tf.name)
-    return pytesseract.image_to_string(img).strip()
+        img = Image.open(tf.name)
+        return pytesseract.image_to_string(img).strip()
 
+    except Exception as e:
+        print(f"[WARN] OCR failed for image: {e}")
+        return ""
 # XLSX (optional)
 def extract_text_from_xlsx(b):
     import openpyxl

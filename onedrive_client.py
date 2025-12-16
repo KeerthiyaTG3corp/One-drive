@@ -72,6 +72,52 @@ class OneDriveClient:
         
         print("Upload complete.")
         return True
+    def upload_new_file(self, folder_relative_path, filename, file_bytes):
+            """
+            Uploads a NEW file to a SharePoint folder.
+            """
+    
+            # Step 1: Get RequestDigest
+            digest_url = f"{self.base_url}_api/contextinfo"
+            digest_resp = requests.post(digest_url, cookies=self.cookies)
+    
+            if digest_resp.status_code != 200:
+                raise Exception(f"Failed to get RequestDigest: {digest_resp.status_code}")
+    
+            try:
+                digest_value = digest_resp.text.split("<d:FormDigestValue>")[1].split("</d:FormDigestValue>")[0]
+            except Exception:
+                raise Exception("Failed to parse RequestDigest.")
+    
+            # Step 2: Upload new file
+            encoded_folder = self._encode_path(folder_relative_path)
+            encoded_filename = quote(filename)
+    
+            upload_url = (
+                f"{self.base_url}_api/web/"
+                f"GetFolderByServerRelativeUrl('{encoded_folder}')"
+                f"/Files/add(url='{encoded_filename}',overwrite=true)"
+            )
+    
+            headers = {
+                "X-RequestDigest": digest_value,
+                "Accept": "application/json;odata=verbose"
+            }
+    
+            print(f"Uploading NEW file to: {upload_url}")
+    
+            response = requests.post(
+                upload_url,
+                headers=headers,
+                cookies=self.cookies,
+                data=file_bytes
+            )
+    
+            if response.status_code not in (200, 201):
+                raise Exception(f"Upload new file failed {response.status_code}: {response.text[:300]}")
+    
+            print("New file upload complete.")
+            return True
     def list_files(self, folder_relative_path):
         encoded = self._encode_path(folder_relative_path)
     
