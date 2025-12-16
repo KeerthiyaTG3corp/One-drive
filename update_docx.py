@@ -4,47 +4,36 @@ import io
 
 def update_questionnaire_with_answers(original_doc_bytes, answers_json):
     """
-    original_doc_bytes: raw bytes of questionnaire docx
-    answers_json: dict returned from GPT, ex:
-        { "answers": [ {"question_index":1, "question":"...", "answer":"..."} ] }
-
-    Returns: updated docx bytes
+    Rebuilds the questionnaire in sequential order:
+    Question
+    Description / Clarification
+    Answer
     """
 
-    # Load docx from bytes into source document
-    doc_stream = io.BytesIO(original_doc_bytes)
-    src = Document(doc_stream)
-
-    # Build a map from question_index -> answer dict
-    answers_list = answers_json.get("answers", [])
-    answers_map = {a["question_index"]: a for a in answers_list}
-
-    # Create a new document and copy paragraphs, inserting answers after questions
     new_doc = Document()
 
-    question_counter = 0
+    answers = answers_json.get("answers", [])
 
-    for para in src.paragraphs:
-        # copy paragraph text with same style
-        new_para = new_doc.add_paragraph(para.text)
-        try:
-            new_para.style = para.style
-        except Exception:
-            pass
+    for idx, item in enumerate(answers, start=1):
+        # Question
+        q_para = new_doc.add_paragraph()
+        q_para.add_run("Question:\n").bold = True
+        q_para.add_run(item.get("question", ""))
 
-        # detect a question line (simple heuristic: ends with '?')
-        if para.text.strip().endswith("?"):
-            question_counter += 1
-            if question_counter in answers_map:
-                answer_text = answers_map[question_counter]["answer"]
-                ans_para = new_doc.add_paragraph(f"Answer: {answer_text}")
-                # try to apply same style as the question paragraph (if available)
-                try:
-                    ans_para.style = para.style
-                except Exception:
-                    pass
+        # Description
+        d_para = new_doc.add_paragraph()
+        d_para.add_run("\nDescription / Clarification:\n").bold = True
+        d_para.add_run(item.get("description", ""))
 
-    # Save updated DOCX to bytes and return
-    out_stream = io.BytesIO()
-    new_doc.save(out_stream)
-    return out_stream.getvalue()
+        # Answer
+        a_para = new_doc.add_paragraph()
+        a_para.add_run("\nAnswer:\n").bold = True
+        a_para.add_run(item.get("answer", "Not found in source"))
+
+        # Spacer between questions
+        new_doc.add_paragraph("\n")
+
+    # Save DOCX to bytes
+    out = io.BytesIO()
+    new_doc.save(out)
+    return out.getvalue()

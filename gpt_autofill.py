@@ -8,30 +8,44 @@ load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 SYSTEM_INSTRUCTIONS = """
-You are a strict information extraction assistant.
-You MUST answer questions using ONLY the content provided below under "QUESTIONNAIRE" and "EVIDENCE".
-Do NOT use any external knowledge or the internet.
+You are a strict compliance questionnaire answering assistant.
 
-If the information is not present in the provided sources,
-reply exactly: "Not found in source".
+Each question appears as a BLOCK with:
+1) Question
+2) Description / Clarification
+3) Response Type
 
-Return the final answers ONLY as a JSON object:
+You MUST:
+- Answer ONLY using the provided EVIDENCE.
+- Use the Description / Clarification to decide what details to include.
+- Follow the Response Type strictly.
 
-{
-  "answers": [
-    {
-      "question_index": 1,
-      "question": "<original question>",
-      "answer": "<answer or 'Not found in source'>"
-    }
-  ]
-}
+Response Type rules:
+- Yes/No: Answer ONLY "Yes" or "No".
+- Free text: Answer in descriptive text.
+- Yes/No + Free text: Start with Yes or No, followed by a brief explanation.
+- Yes/No + URL: Start with Yes or No, followed by a URL if present in evidence.
 
-No extra text. No explanation. Only JSON.
+If the information is NOT found in the EVIDENCE:
+- Return "Not found in source" as the answer.
+
+Return ONLY valid JSON in the EXACT format specified.
+No explanations. No assumptions. No external knowledge.
 """
 
 def _build_user_prompt(questionnaire_text, evidence_texts):
-    prompt = "\nQUESTIONNAIRE:\n" + questionnaire_text + "\n\nEVIDENCE:\n"
+    prompt = """
+QUESTIONNAIRE:
+The questionnaire consists of repeated BLOCKS in the following order:
+
+Question
+Description / Clarification
+Response Type
+"""
+
+    prompt += "\n" + questionnaire_text + "\n\n"
+
+    prompt += "EVIDENCE:\n"
 
     for fname, txt in evidence_texts.items():
         prompt += f"\n--- BEGIN {fname} ---\n"
@@ -40,9 +54,37 @@ def _build_user_prompt(questionnaire_text, evidence_texts):
 
     prompt += """
 TASK:
-Extract ALL questions from the QUESTIONNAIRE and answer them
-ONLY using the EVIDENCE. If an answer is not found, write "Not found in source".
-Return ONLY the JSON.
+For EACH question block in the QUESTIONNAIRE:
+
+1. Identify:
+   - Question
+   - Description / Clarification
+   - Response Type
+
+2. Use the Description to understand WHAT information is required.
+
+3. Answer strictly using ONLY the EVIDENCE.
+
+4. Format the answer strictly according to the Response Type rules.
+
+5. If the answer is not found in the evidence, write:
+   "Not found in source"
+
+Return ONLY the following JSON structure:
+
+{
+  "answers": [
+    {
+      "question_index": 1,
+      "question": "<question text>",
+      "description": "<description / clarification text>",
+      "response_type": "<response type>",
+      "answer": "<final formatted answer>"
+    }
+  ]
+}
+
+Return ONLY valid JSON. No extra text.
 """
     return prompt
 
