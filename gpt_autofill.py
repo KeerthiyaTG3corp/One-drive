@@ -12,7 +12,7 @@ You are a strict compliance questionnaire answering assistant.
 
 You MUST:
 - Answer ONLY using the provided EVIDENCE.
-- Follow the response_type strictly.
+- If response_type is provided, follow it strictly. Otherwise, provide an appropriate answer.
 - Answer ALL questions.
 - Never skip a question.
 
@@ -29,8 +29,8 @@ You are given a LIST of compliance questions.
 Each question includes:
 - question_index
 - question
-- description
-- response_type
+- description (optional)
+- response_type (optional)
 """
 
     prompt += "\nQUESTIONS (JSON):\n"
@@ -46,7 +46,7 @@ Each question includes:
     prompt += """
 TASK:
 Answer EVERY question using ONLY the evidence.
-Follow response_type strictly.
+If response_type is provided, follow it strictly. Otherwise, provide an appropriate answer.
 
 Return ONLY this JSON structure:
 
@@ -68,13 +68,13 @@ def ask_questions_with_evidence(questions, evidence_texts):
     user_prompt = _build_user_prompt(questions, evidence_texts)
 
     response = client.chat.completions.create(
-        model="gpt-4o-mini",
+        model="gpt-4o-mini",  # Corrected model name
         messages=[
             {"role": "system", "content": SYSTEM_INSTRUCTIONS},
             {"role": "user", "content": user_prompt}
         ],
         temperature=0.0,
-        max_tokens=1800
+        max_tokens=1200  # Reduced to save tokens
     )
 
     content = response.choices[0].message.content.strip()

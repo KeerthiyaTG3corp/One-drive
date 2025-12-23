@@ -1,11 +1,12 @@
 # main.py
 import os
+import time
 from dotenv import load_dotenv
 from onedrive_client import OneDriveClient
 from extract_file import extract_text
 from gpt_autofill import ask_questions_with_evidence
 from update_docx import update_questionnaire_with_answers
-from questionnaire_parser import extract_questions_from_table
+from questionnaire_parser import extract_questions
 
 load_dotenv()
 
@@ -18,13 +19,13 @@ EVIDENCE_PATH = os.getenv("EVIDENCE_PATH")
 client = OneDriveClient(BASE_URL, FEDAUTH, RTFA)
 
 print("\nSTEP 1: Downloading questionnaire from OneDrive...")
-client.download_file(QUESTION_PATH, "questionnaire.docx")
+client.download_file(QUESTION_PATH, "Questionnaire.docx")
 
-with open("questionnaire.docx", "rb") as f:
+with open("Questionnaire.docx", "rb") as f:
     questionnaire_bytes = f.read()
 
-print("STEP 2: Extracting questions from questionnaire table...")
-questions = extract_questions_from_table(questionnaire_bytes)
+print("STEP 2: Extracting questions from questionnaire...")
+questions = extract_questions(questionnaire_bytes)
 print(f"✔ Extracted {len(questions)} questions")
 
 print("STEP 3: Loading evidence files from OneDrive...")
@@ -46,7 +47,7 @@ for file_path in file_paths:
 print("STEP 4: Asking GPT to autofill answers using ONLY the evidence...")
 
 all_answers = {"answers": []}
-BATCH_SIZE = 8   # do NOT increase too much
+BATCH_SIZE = 4   # Reduced to avoid rate limits
 
 for i in range(0, len(questions), BATCH_SIZE):
     batch = questions[i:i+BATCH_SIZE]
@@ -54,6 +55,11 @@ for i in range(0, len(questions), BATCH_SIZE):
 
     result = ask_questions_with_evidence(batch, evidence_texts)
     all_answers["answers"].extend(result.get("answers", []))
+
+    # Sleep to avoid rate limits
+    if i + BATCH_SIZE < len(questions):
+        print("Sleeping 10 seconds to avoid rate limits...")
+        time.sleep(10)
 
 answers_json = all_answers
 print("✔ TOTAL answers collected:", len(answers_json["answers"]))
